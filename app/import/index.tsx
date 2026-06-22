@@ -39,7 +39,6 @@ import { formatCurrency, formatTransactionDate } from '@/shared/utils/format';
 import type { Category, ParsedTransaction } from '@/types/database.types';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryClient';
-import { useBalance, useSetStartingBalance } from '@/features/transactions/hooks/useTransactions';
 
 export default function ImportScreen() {
   const user = useAuthStore((s) => s.user);
@@ -50,8 +49,6 @@ export default function ImportScreen() {
   const { mutateAsync: createRule } = useCreateRule();
 
   const { state, pickAndParse, confirmImport, reset } = usePdfImport(user!.id, rules);
-  const { data: balance } = useBalance();
-  const setStartingBalance = useSetStartingBalance();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [categoryOverrides, setCategoryOverrides] = useState<Map<number, string | null>>(new Map());
   const [pickerOpen, setPickerOpen] = useState<number | null>(null);
@@ -167,9 +164,6 @@ export default function ImportScreen() {
   // ── Done ──────────────────────────────────────────────────────────────────
 
   if (state.step === 'done' && state.result) {
-    const showBalancePrompt =
-      state.preview?.openingBalance != null && (balance?.startingBalance ?? 0) === 0;
-
     return (
       <Screen safeArea scroll>
         <Header title="Import Complete" back />
@@ -194,39 +188,7 @@ export default function ImportScreen() {
             </View>
           </View>
 
-          {showBalancePrompt && (
-            <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.balancePromptCard}>
-              <View style={styles.balancePromptIcon}>
-                <Ionicons name="wallet-outline" size={22} color={colors.brand.primary} />
-              </View>
-              <Text variant="headingXs" style={{ textAlign: 'center' }}>
-                Sync your bank balance
-              </Text>
-              <Text variant="bodySm" color="secondary" style={{ textAlign: 'center' }}>
-                Set{' '}
-                <Text variant="bodySm" style={{ color: colors.text.primary, fontWeight: '700' }}>
-                  {formatCurrency(state.preview!.openingBalance!, currencySymbol)}
-                </Text>
-                {' '}as your starting balance to make your app balance match the bank.
-              </Text>
-              <Button
-                label={`Set ${formatCurrency(state.preview!.openingBalance!, currencySymbol)} as Starting Balance`}
-                onPress={() => setStartingBalance.mutate(state.preview!.openingBalance!, { onSuccess: () => reset() })}
-                loading={setStartingBalance.isPending}
-                fullWidth
-                size="md"
-              />
-              <Pressable onPress={reset} style={{ paddingVertical: spacing[2] }}>
-                <Text variant="labelMd" color="secondary" style={{ textAlign: 'center' }}>
-                  Skip for now
-                </Text>
-              </Pressable>
-            </Animated.View>
-          )}
-
-          {!showBalancePrompt && (
-            <Button label="Done" onPress={reset} fullWidth size="lg" />
-          )}
+          <Button label="Done" onPress={reset} fullWidth size="lg" />
         </Animated.View>
       </Screen>
     );

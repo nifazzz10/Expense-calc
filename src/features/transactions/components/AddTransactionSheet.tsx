@@ -77,11 +77,15 @@ export function AddTransactionSheet({
   }, [editingTransaction]);
 
   useEffect(() => {
-    if (!isEditing && description.length > 2 && rules.length > 0) {
-      const matched = ruleService.applyRules(description, rules);
-      if (matched) setSelectedCategoryId(matched);
+    if (isEditing || description.length <= 2 || rules.length === 0) return;
+    const matched = ruleService.applyRules(description, rules);
+    if (!matched) return;
+    // Only apply if the matched category belongs to the current tab type
+    const matchedCat = categories.find((c) => c.id === matched);
+    if (matchedCat && (matchedCat.type === activeTab || matchedCat.type === 'all')) {
+      setSelectedCategoryId(matched);
     }
-  }, [description, rules, isEditing]);
+  }, [description, rules, isEditing, activeTab, categories]);
 
   const filteredCategories = categories.filter(
     (c) => c.type === activeTab || c.type === 'all',

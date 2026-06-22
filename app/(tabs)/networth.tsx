@@ -7,6 +7,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart } from 'react-native-gifted-charts';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '@/theme';
@@ -31,13 +32,12 @@ export default function NetWorthScreen() {
 
   const { data: balance, isLoading: balanceLoading } = useBalance();
   const { data: monthly = [], isLoading: monthlyLoading } = useMonthlyAnalytics(year);
-  const { data: investments = [], isLoading: investLoading } = useInvestmentTransactions(15);
+  const { data: investments = [], isLoading: investLoading } = useInvestmentTransactions(20);
 
   const cashBalance = balance?.balance ?? 0;
-  const investmentTotal = balance?.investmentTotal ?? 0;
-  const netWorth = cashBalance + investmentTotal;
+  const totalInvestment = balance?.totalInvestment ?? 0;
+  const netWorth = cashBalance + totalInvestment;
 
-  // Grouped bar chart: income (green), expense (red), investment (purple) per month
   const barData: object[] = [];
   monthly.forEach((m, i) => {
     const label = getMonthName(i + 1).slice(0, 3);
@@ -75,8 +75,11 @@ export default function NetWorthScreen() {
           {balanceLoading ? (
             <CardSkeleton />
           ) : (
-            <View style={styles.heroCard}>
-              <Text variant="labelMd" color="secondary" style={{ letterSpacing: 0.5 }}>
+            <LinearGradient
+              colors={['#1A1730', '#0F0D1E']}
+              style={styles.heroCard}
+            >
+              <Text variant="labelMd" color="secondary" style={styles.heroLabel}>
                 TOTAL NET WORTH
               </Text>
               <Text
@@ -86,31 +89,64 @@ export default function NetWorthScreen() {
                 {formatCurrency(netWorth, currencySymbol)}
               </Text>
               <Text variant="bodySm" color="secondary" style={{ marginTop: spacing[1] }}>
-                Cash + Investments
+                Cash balance + invested
               </Text>
-            </View>
+
+              {/* Income vs Expense strip */}
+              <View style={styles.heroStrip}>
+                <View style={styles.heroStripItem}>
+                  <View style={[styles.heroStripDot, { backgroundColor: colors.income }]} />
+                  <Text variant="labelSm" color="secondary">Income</Text>
+                  <Text variant="bodyMd" style={{ color: colors.income, fontWeight: '700' }}>
+                    {formatCurrency(balance?.totalIncome ?? 0, currencySymbol)}
+                  </Text>
+                </View>
+                <View style={styles.heroStripDivider} />
+                <View style={styles.heroStripItem}>
+                  <View style={[styles.heroStripDot, { backgroundColor: colors.expense }]} />
+                  <Text variant="labelSm" color="secondary">Expenses</Text>
+                  <Text variant="bodyMd" style={{ color: colors.expense, fontWeight: '700' }}>
+                    {formatCurrency(balance?.totalExpense ?? 0, currencySymbol)}
+                  </Text>
+                </View>
+                <View style={styles.heroStripDivider} />
+                <View style={styles.heroStripItem}>
+                  <View style={[styles.heroStripDot, { backgroundColor: colors.investment }]} />
+                  <Text variant="labelSm" color="secondary">Invested</Text>
+                  <Text variant="bodyMd" style={{ color: colors.investment, fontWeight: '700' }}>
+                    {formatCurrency(totalInvestment, currencySymbol)}
+                  </Text>
+                </View>
+              </View>
+            </LinearGradient>
           )}
         </Animated.View>
 
         {/* Cash / Investment breakdown */}
         <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.breakdownRow}>
-          <View style={[styles.breakdownCard, { borderColor: colors.income + '44' }]}>
+          <View style={[styles.breakdownCard, { borderColor: colors.income + '33' }]}>
             <View style={[styles.breakdownIcon, { backgroundColor: colors.incomeLight }]}>
               <Ionicons name="wallet-outline" size={18} color={colors.income} />
             </View>
             <Text variant="labelSm" color="secondary">Cash Balance</Text>
-            <Text variant="headingSm" style={{ color: colors.income }}>
+            <Text variant="headingSm" style={{ color: cashBalance >= 0 ? colors.income : colors.expense }}>
               {formatCurrency(cashBalance, currencySymbol)}
+            </Text>
+            <Text variant="labelSm" color="secondary" style={styles.breakdownSub}>
+              Income − Expenses
             </Text>
           </View>
 
-          <View style={[styles.breakdownCard, { borderColor: colors.investment + '44' }]}>
+          <View style={[styles.breakdownCard, { borderColor: colors.investment + '33' }]}>
             <View style={[styles.breakdownIcon, { backgroundColor: colors.investmentLight }]}>
               <Ionicons name="trending-up-outline" size={18} color={colors.investment} />
             </View>
-            <Text variant="labelSm" color="secondary">Investments</Text>
+            <Text variant="labelSm" color="secondary">Invested</Text>
             <Text variant="headingSm" style={{ color: colors.investment }}>
-              {formatCurrency(investmentTotal, currencySymbol)}
+              {formatCurrency(totalInvestment, currencySymbol)}
+            </Text>
+            <Text variant="labelSm" color="secondary" style={styles.breakdownSub}>
+              Total deployed
             </Text>
           </View>
         </Animated.View>
@@ -121,7 +157,6 @@ export default function NetWorthScreen() {
             MONTHLY OVERVIEW — {year}
           </Text>
           <Card padding={spacing[4]}>
-            {/* Legend */}
             <View style={styles.legend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.income }]} />
@@ -166,9 +201,11 @@ export default function NetWorthScreen() {
             <Text variant="labelMd" color="tertiary" style={styles.sectionTitle}>
               INVESTMENT HISTORY
             </Text>
-            <Text variant="labelSm" style={{ color: colors.investment }}>
-              {investments.length} transactions
-            </Text>
+            {investments.length > 0 && (
+              <Text variant="labelSm" style={{ color: colors.investment }}>
+                {investments.length} entries
+              </Text>
+            )}
           </View>
 
           {investLoading ? (
@@ -178,7 +215,7 @@ export default function NetWorthScreen() {
               <View style={styles.emptyState}>
                 <Ionicons name="trending-up-outline" size={36} color={colors.text.disabled} />
                 <Text variant="bodyMd" color="secondary" style={{ textAlign: 'center' }}>
-                  No investments yet.{'\n'}Log one using the + button and select Investment.
+                  No investments yet.{'\n'}Add one using the + button and select Investment.
                 </Text>
               </View>
             </Card>
@@ -201,8 +238,6 @@ export default function NetWorthScreen() {
     </Screen>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 function InvestmentRow({
   txn,
@@ -235,13 +270,11 @@ function InvestmentRow({
         </Text>
       </View>
       <Text variant="bodySm" style={{ color: colors.investment, fontWeight: '700' }}>
-        -{formatCurrency(txn.amount, currencySymbol)}
+        {formatCurrency(txn.amount, currencySymbol)}
       </Text>
     </View>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
@@ -268,15 +301,42 @@ const styles = StyleSheet.create({
     gap: spacing[4],
     paddingBottom: spacing[6],
   },
+
+  // Hero card
   heroCard: {
-    backgroundColor: colors.surface.secondary,
     borderRadius: radius['2xl'],
     padding: spacing[6],
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.surface.border,
+    borderColor: colors.brand.primary + '22',
     gap: spacing[1],
   },
+  heroLabel: {
+    letterSpacing: 0.8,
+  },
+  heroStrip: {
+    flexDirection: 'row',
+    marginTop: spacing[5],
+    width: '100%',
+  },
+  heroStripItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  heroStripDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginBottom: spacing[0.5],
+  },
+  heroStripDivider: {
+    width: 1,
+    backgroundColor: colors.surface.border,
+    marginVertical: spacing[1],
+  },
+
+  // Breakdown cards
   breakdownRow: {
     flexDirection: 'row',
     gap: spacing[3],
@@ -287,7 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing[4],
     alignItems: 'flex-start',
-    gap: spacing[1.5],
+    gap: spacing[1],
     borderWidth: 1,
   },
   breakdownIcon: {
@@ -298,6 +358,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing[1],
   },
+  breakdownSub: {
+    marginTop: spacing[0.5],
+  },
+
+  // Chart
   sectionTitle: {
     letterSpacing: 0.8,
     marginBottom: spacing[2],
@@ -324,11 +389,15 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+
+  // Empty state
   emptyState: {
     alignItems: 'center',
     gap: spacing[3],
     paddingVertical: spacing[4],
   },
+
+  // Investment rows
   investRow: {
     flexDirection: 'row',
     alignItems: 'center',

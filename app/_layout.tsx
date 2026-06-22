@@ -8,50 +8,33 @@ import { queryClient } from '@/lib/queryClient';
 import { useAuthStore } from '@/store/authStore';
 import { useAuthListener } from '@/shared/hooks/useAuth';
 import { colors } from '@/theme';
-import type { User } from '@supabase/supabase-js';
-
-// DEV: skip auth — remove when Supabase SMTP is configured
-const DEV_SKIP_AUTH = true;
-const DEV_MOCK_USER: User = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'dev@example.com',
-  app_metadata: {},
-  user_metadata: {},
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-} as User;
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, isLoading, setSession, setLoading } = useAuthStore();
+  const { session, isLoading, onboardingSeen } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
-  if (DEV_SKIP_AUTH) {
-    // Inject a mock session so user_id is available in all queries
-    useEffect(() => {
-      setSession({ user: DEV_MOCK_USER, access_token: 'dev', refresh_token: 'dev' } as any);
-      setLoading(false);
-    }, []);
-  } else {
-    useAuthListener();
-  }
+  useAuthListener();
 
   useEffect(() => {
-    if (isLoading) return;
+    // Wait until both auth check and SecureStore check are resolved
+    if (isLoading || onboardingSeen === null) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuth = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === '(onboarding)';
 
-    if (DEV_SKIP_AUTH) {
-      if (inAuthGroup) router.replace('/(tabs)');
+    if (session) {
+      if (inAuth || inOnboarding) router.replace('/(tabs)');
       return;
     }
 
-    if (!session && !inAuthGroup) {
+    // No session
+    if (!onboardingSeen && !inOnboarding) {
+      router.replace('/(onboarding)');
+    } else if (onboardingSeen && !inAuth) {
       router.replace('/(auth)/login');
-    } else if (session && inAuthGroup) {
-      router.replace('/(tabs)');
     }
-  }, [session, isLoading, segments]);
+  }, [session, isLoading, segments, onboardingSeen]);
 
   return <>{children}</>;
 }
@@ -63,6 +46,7 @@ export default function RootLayout() {
         <BottomSheetModalProvider>
           <AuthGuard>
             <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(onboarding)" />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen

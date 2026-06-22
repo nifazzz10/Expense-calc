@@ -5,6 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 // Importing the worker entry bundles it into the JS thread (no Web Worker in RN)
 import 'pdfjs-dist/legacy/build/pdf.worker.entry';
 import { supabase } from '@/lib/supabase';
+import { queryClient, queryKeys } from '@/lib/queryClient';
 import { transactionService } from '@/features/transactions/services/transactionService';
 import { ruleService } from '@/features/rules/hooks/useRuleService';
 import { detectAndParse } from '../parsers';
@@ -172,6 +173,10 @@ export function usePdfImport(userId: string, rules: Rule[]) {
         }));
 
         const imported = await transactionService.bulkCreate(userId, rows);
+
+        // Bust all derived caches so balance, analytics and networth reflect the import
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
 
         setState((s) => ({
           ...s,

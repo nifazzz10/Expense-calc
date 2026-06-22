@@ -165,51 +165,32 @@ export const transactionService = {
   },
 
   async getBalance(userId: string) {
-    const [txnResult, userResult] = await Promise.all([
-      supabase
-        .from('transactions')
-        .select('amount, transaction_type')
-        .eq('user_id', userId)
-        .neq('transaction_type', 'transfer'),
-      supabase
-        .from('users')
-        .select('starting_balance')
-        .eq('id', userId)
-        .single(),
-    ]);
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('amount, transaction_type')
+      .eq('user_id', userId)
+      .in('transaction_type', ['income', 'expense', 'investment']);
 
-    if (txnResult.error) throw txnResult.error;
+    if (error) throw error;
 
-    const rows = txnResult.data ?? [];
-    const startingBalance = Number((userResult.data as any)?.starting_balance ?? 0);
-
+    const rows = data ?? [];
     const totalIncome = rows
       .filter((t) => t.transaction_type === 'income')
       .reduce((sum, t) => sum + Number(t.amount), 0);
     const totalExpense = rows
       .filter((t) => t.transaction_type === 'expense')
       .reduce((sum, t) => sum + Number(t.amount), 0);
-    const investmentTotal = rows
+    const totalInvestment = rows
       .filter((t) => t.transaction_type === 'investment')
       .reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const cashBalance = startingBalance + totalIncome - totalExpense - investmentTotal;
 
     return {
       totalIncome,
       totalExpense,
-      investmentTotal,
-      balance: cashBalance,
-      startingBalance,
+      totalInvestment,
+      // Cash balance: income minus expenses only, investments tracked separately
+      balance: totalIncome - totalExpense,
     };
-  },
-
-  async setStartingBalance(userId: string, amount: number) {
-    const { error } = await supabase
-      .from('users')
-      .update({ starting_balance: amount })
-      .eq('id', userId);
-    if (error) throw error;
   },
 
   async getByType(userId: string, type: string, limit = 20) {

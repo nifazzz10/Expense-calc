@@ -54,12 +54,13 @@ function normalizeKeyword(kw: string): string {
  * Returns a score > 0 if `rule` matches `normalizedDesc`, 0 otherwise.
  *
  * Scoring tiers (highest to lowest):
- *  1. Exact contiguous substring match → (priority+1) × kwLen × 2
- *  2. All keyword tokens present as whole words (any order) → (priority+1) × kwLen
- *  3. Single-word exact whole-word match → (priority+1) × kwLen
- *
- * This means a higher-priority shorter keyword can beat a lower-priority
- * longer one when the latter only matches via token scatter.
+ *  Multi-word keyword:
+ *   1. Exact contiguous phrase match  → (priority+1) × kwLen × 2
+ *   2. All tokens present as whole words (any order) → (priority+1) × kwLen
+ *  Single-word keyword:
+ *   3. Whole-word boundary match only → (priority+1) × kwLen
+ *      (substring is intentionally NOT used for single words — "ola" must not
+ *       match inside "cola", "bipolar", "angola", etc.)
  */
 function matchScore(normalizedDesc: string, rule: Rule): number {
   const kw = normalizeKeyword(rule.keyword);
@@ -67,30 +68,29 @@ function matchScore(normalizedDesc: string, rule: Rule): number {
 
   const p = (rule.priority ?? 0) + 1;
   const len = kw.length;
-
-  // Tier 1 — contiguous substring
-  if (normalizedDesc.includes(kw)) {
-    return p * len * 2;
-  }
-
-  const kwTokens = kw.split(' ').filter((t) => t.length > 1);
+  // Keep all tokens including single-char ones (e.g. "h" from "h&m")
+  const kwTokens = kw.split(' ').filter((t) => t.length > 0);
   if (kwTokens.length === 0) return 0;
 
-  // Tier 2 — all keyword tokens present as whole words (handles "iccl - mutual" ↔ "iccl mutual f")
   if (kwTokens.length >= 2) {
+    // Tier 1 — contiguous phrase (safe for multi-word: "pizza hut" ⊂ "pizza hut delivery")
+    if (normalizedDesc.includes(kw)) {
+      return p * len * 2;
+    }
+    // Tier 2 — all tokens as individual whole words, any order
     const descWords = new Set(normalizedDesc.split(' '));
     if (kwTokens.every((t) => descWords.has(t))) {
       return p * len;
     }
+    return 0;
   }
 
-  // Tier 3 — single-word whole-word boundary match (avoids "jio" hitting "myjio" substring)
-  if (kwTokens.length === 1) {
-    const word = kwTokens[0];
-    const wordBoundary = new RegExp(`\\b${word}\\b`);
-    if (wordBoundary.test(normalizedDesc)) {
-      return p * len;
-    }
+  // Tier 3 — single-word: whole-word boundary ONLY
+  // "kfc" matches "kfc salem" ✓ but NOT inside "ekfc" or "kfcbd" ✓
+  const escaped = kwTokens[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordBoundary = new RegExp(`\\b${escaped}\\b`);
+  if (wordBoundary.test(normalizedDesc)) {
+    return p * len;
   }
 
   return 0;

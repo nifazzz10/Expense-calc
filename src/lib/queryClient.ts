@@ -39,6 +39,7 @@ export const queryKeys = {
     list: () => ['statements', 'list'] as const,
   },
   analytics: {
+    all: ['analytics'] as const,
     monthly: (year: number) => ['analytics', 'monthly', year] as const,
     categories: (month: string) => ['analytics', 'categories', month] as const,
     yearly: (year: number) => ['analytics', 'yearly', year] as const,

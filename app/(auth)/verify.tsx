@@ -12,13 +12,13 @@ import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
-import { colors, spacing, radius, typography } from '@/theme';
+import { colors, spacing, radius } from '@/theme';
 import { Screen } from '@/shared/components/layout/Screen';
 import { Header } from '@/shared/components/layout/Header';
 import { Text } from '@/shared/components/ui/Text';
 import { Button } from '@/shared/components/ui/Button';
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 
 export default function VerifyScreen() {
   const { email, mode } = useLocalSearchParams<{ email: string; mode: string }>();
@@ -64,7 +64,7 @@ export default function VerifyScreen() {
   const handleVerify = async (code?: string) => {
     const otpCode = code ?? otp.join('');
     if (otpCode.length < OTP_LENGTH) {
-      setError('Please enter the 6-digit code');
+      setError('Please enter the 8-digit code');
       return;
     }
 
@@ -246,18 +246,18 @@ const styles = StyleSheet.create({
   },
   otpContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing[3],
+    gap: spacing[1.5],
   },
   otpInput: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.lg,
+    flex: 1,
+    height: 48,
+    borderRadius: radius.md,
     borderWidth: 2,
     borderColor: colors.surface.border,
     backgroundColor: colors.surface.secondary,
     textAlign: 'center',
-    ...typography.heading.md,
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text.primary,
   },
   otpInputFilled: {

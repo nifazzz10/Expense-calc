@@ -51,6 +51,11 @@ export function useBalance() {
   });
 }
 
+function invalidateAll(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+}
+
 export function useCreateTransaction() {
   const userId = useAuthStore((s) => s.user?.id);
   const queryClient = useQueryClient();
@@ -59,7 +64,7 @@ export function useCreateTransaction() {
     mutationFn: (payload: CreateTransaction) =>
       transactionService.create(userId!, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      invalidateAll(queryClient);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -72,7 +77,7 @@ export function useUpdateTransaction() {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateTransaction }) =>
       transactionService.update(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      invalidateAll(queryClient);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -84,7 +89,7 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) => transactionService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      invalidateAll(queryClient);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     },
   });
@@ -96,7 +101,7 @@ export function useDeleteTransactions() {
   return useMutation({
     mutationFn: (ids: string[]) => transactionService.bulkDelete(ids),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      invalidateAll(queryClient);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
   });
@@ -113,15 +118,3 @@ export function useInvestmentTransactions(limit = 20) {
   });
 }
 
-export function useSetStartingBalance() {
-  const userId = useAuthStore((s) => s.user?.id);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (amount: number) => transactionService.setStartingBalance(userId!, amount),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.transactions.all, 'balance'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-  });
-}

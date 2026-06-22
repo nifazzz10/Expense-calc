@@ -11,6 +11,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "ANDROID_HOME": "/Users/nifaz/Library/Android/sdk"
       }
     },
     "production": {}
