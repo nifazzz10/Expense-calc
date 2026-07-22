@@ -188,8 +188,8 @@ export const transactionService = {
       totalIncome,
       totalExpense,
       totalInvestment,
-      // Cash balance: income minus expenses only, investments tracked separately
-      balance: totalIncome - totalExpense,
+      // Cash balance: income minus expenses and investments (invested money leaves your cash)
+      balance: totalIncome - totalExpense - totalInvestment,
     };
   },
 

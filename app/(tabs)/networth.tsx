@@ -133,7 +133,7 @@ export default function NetWorthScreen() {
               {formatCurrency(cashBalance, currencySymbol)}
             </Text>
             <Text variant="labelSm" color="secondary" style={styles.breakdownSub}>
-              Income − Expenses
+              Income − Expenses − Invested
             </Text>
           </View>
 

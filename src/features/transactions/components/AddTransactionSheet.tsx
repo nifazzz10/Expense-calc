@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -21,6 +21,7 @@ import { useCategories } from '@/features/categories/hooks/useCategories';
 import { useCreateTransaction, useUpdateTransaction } from '../hooks/useTransactions';
 import { ruleService } from '@/features/rules/hooks/useRuleService';
 import { useRules } from '@/features/rules/hooks/useRules';
+import { parseDescription } from '@/shared/utils/parseDescription';
 import type { Transaction, TransactionType, Category } from '@/types/database.types';
 import { useSettingsStore } from '@/store/settingsStore';
 
@@ -65,6 +66,15 @@ export function AddTransactionSheet({
 
   const isEditing = !!editingTransaction;
 
+  // Refs so the auto-cat effect can read current values without being in its deps
+  const activeTabRef = useRef(activeTab);
+  const selectedCategoryRef = useRef(selectedCategoryId);
+  // Set when user manually taps a category chip; reset when description is cleared
+  const userOverrode = useRef(false);
+
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { selectedCategoryRef.current = selectedCategoryId; }, [selectedCategoryId]);
+
   useEffect(() => {
     if (editingTransaction) {
       setActiveTab(editingTransaction.transaction_type as TabType);
@@ -73,23 +83,61 @@ export function AddTransactionSheet({
       setNotes(editingTransaction.notes ?? '');
       setSelectedCategoryId(editingTransaction.category_id);
       setDate(editingTransaction.transaction_date);
+      userOverrode.current = false;
     }
   }, [editingTransaction]);
 
+  // Reset manual-override flag only when description is fully cleared so a
+  // fresh entry gets auto-cat again, but mid-edit typos don't clobber picks.
   useEffect(() => {
-    if (isEditing || description.length <= 2 || rules.length === 0) return;
+    if (description.length === 0) userOverrode.current = false;
+  }, [description]);
+
+  useEffect(() => {
+    // Skip if user manually chose a category this session
+    if (userOverrode.current) return;
+    // Skip if description is too short or rules not loaded
+    if (description.length <= 2 || rules.length === 0) return;
+    // Skip if editing and transaction already has a category
+    if (isEditing && selectedCategoryRef.current) return;
+
     const matched = ruleService.applyRules(description, rules);
     if (!matched) return;
-    // Only apply if the matched category belongs to the current tab type
-    const matchedCat = categories.find((c) => c.id === matched);
-    if (matchedCat && (matchedCat.type === activeTab || matchedCat.type === 'all')) {
-      setSelectedCategoryId(matched);
-    }
-  }, [description, rules, isEditing, activeTab, categories]);
 
-  const filteredCategories = categories.filter(
-    (c) => c.type === activeTab || c.type === 'all',
-  );
+    const matchedCat = categories.find((c) => c.id === matched);
+    if (!matchedCat) return;
+
+    const cur = activeTabRef.current;
+    // Imported transactions: tab is locked — flipping it would change a bank
+    // credit to a debit or vice versa. Manual entries (new or edited) can switch freely.
+    const isImport = editingTransaction?.source === 'import';
+
+    if (isImport) {
+      // Only set category if compatible with the locked tab type.
+      const compatible =
+        matchedCat.type === 'all' ||
+        matchedCat.type === cur ||
+        (matchedCat.type === 'income' && cur === 'investment');
+      if (!compatible) return;
+    } else {
+      // New transaction or manual edit: auto-switch tab to match the category type.
+      // 'investment' tab uses income-type categories — don't pull user off it.
+      const targetTab: TabType =
+        matchedCat.type === 'expense'  ? 'expense'  :
+        matchedCat.type === 'transfer' ? 'transfer' :
+        matchedCat.type === 'income'   ? (cur === 'investment' ? 'investment' : 'income') :
+        cur; // 'all' → stay on current tab
+      if (targetTab !== cur) setActiveTab(targetTab);
+    }
+
+    setSelectedCategoryId(matched);
+  }, [description, rules, categories, isEditing, editingTransaction]);
+
+  // Investment tab: show income-type categories (no 'investment' category type exists in DB)
+  const filteredCategories = categories.filter((c) => {
+    if (activeTab === 'investment') return c.type === 'income' || c.type === 'all';
+    return c.type === activeTab || c.type === 'all';
+  });
 
   const reset = useCallback(() => {
     setActiveTab('expense');
@@ -98,6 +146,7 @@ export function AddTransactionSheet({
     setNotes('');
     setSelectedCategoryId(null);
     setDate(format(new Date(), 'yyyy-MM-dd'));
+    userOverrode.current = false;
   }, []);
 
   const handleSave = async () => {
@@ -217,6 +266,7 @@ export function AddTransactionSheet({
             selectionColor={colors.brand.primary}
             returnKeyType="next"
           />
+          <ParsedDescriptionCard description={description} />
         </View>
 
         {/* Date — inline calendar picker */}
@@ -239,6 +289,7 @@ export function AddTransactionSheet({
                 category={cat}
                 selected={selectedCategoryId === cat.id}
                 onPress={() => {
+                  userOverrode.current = true;
                   setSelectedCategoryId(cat.id === selectedCategoryId ? null : cat.id);
                   Haptics.selectionAsync();
                 }}
@@ -274,6 +325,67 @@ export function AddTransactionSheet({
     </BottomSheet>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Parsed description view-only card
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ParsedDescriptionCard({ description }: { description: string }) {
+  const parsed = parseDescription(description);
+  if (!parsed.tag) return null;
+
+  return (
+    <View style={parsedStyles.card}>
+      <View style={parsedStyles.row}>
+        <View style={parsedStyles.tag}>
+          <Text variant="labelSm" style={parsedStyles.tagText}>{parsed.tag}</Text>
+        </View>
+        <Text variant="bodySm" style={parsedStyles.title} numberOfLines={1}>
+          {parsed.title}
+        </Text>
+      </View>
+      <Text variant="labelSm" color="tertiary" numberOfLines={2} style={parsedStyles.raw}>
+        {parsed.raw}
+      </Text>
+    </View>
+  );
+}
+
+const parsedStyles = StyleSheet.create({
+  card: {
+    marginTop: spacing[2],
+    backgroundColor: colors.surface.secondary,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.brand.primary + '33',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2.5],
+    gap: spacing[1],
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  tag: {
+    backgroundColor: colors.brand.primary + '1A',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[0.5],
+  },
+  tagText: {
+    color: colors.brand.primary,
+    fontWeight: '600',
+  },
+  title: {
+    flex: 1,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  raw: {
+    lineHeight: 16,
+  },
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline calendar date picker

@@ -19,6 +19,7 @@ import { colors, spacing, radius } from '@/theme';
 import { Text } from '@/shared/components/ui/Text';
 import { CategoryIcon } from '@/shared/components/ui/CategoryIcon';
 import { formatCurrency, formatTransactionDate } from '@/shared/utils/format';
+import { parseDescription } from '@/shared/utils/parseDescription';
 import type { Transaction } from '@/types/database.types';
 import { useSettingsStore } from '@/store/settingsStore';
 
@@ -52,6 +53,7 @@ export function TransactionRow({
   const isDeleting = useSharedValue(false);
 
   const { category, amount, description, transaction_type, transaction_date } = transaction;
+  const parsed = parseDescription(description ?? '');
 
   const amountColor =
     transaction_type === 'income' ? colors.income :
@@ -162,10 +164,11 @@ export function TransactionRow({
             )}
 
             <View style={styles.info}>
-              <Text variant="bodySm" numberOfLines={1} style={styles.description}>
-                {description || 'No description'}
+              <Text variant="bodySm" numberOfLines={1} style={styles.title}>
+                {parsed.title}
               </Text>
               <View style={styles.meta}>
+                {parsed.tag && <TagBadge tag={parsed.tag} />}
                 <Text variant="labelSm" color="tertiary">
                   {formatTransactionDate(transaction_date)}
                 </Text>
@@ -192,6 +195,52 @@ export function TransactionRow({
     </Animated.View>
   );
 }
+
+const TAG_LABEL: Record<string, string> = {
+  'UPI Credit':  'UPI',
+  'UPI Debit':   'UPI',
+  'UPI':         'UPI',
+  'NEFT':        'NEFT',
+  'IMPS':        'IMPS',
+  'RTGS':        'RTGS',
+  'ATM':         'ATM',
+  'Debit Card':  'Card',
+  'Credit Card': 'CC',
+  'Cheque':      'CHQ',
+  'Auto Debit':  'ECS',
+  'NACH Debit':  'NACH',
+  'EMI':         'EMI',
+  'Salary':      'SAL',
+  'Interest':    'INT',
+  'Transfer':    'TFR',
+  'Dividend':    'DIV',
+};
+
+function TagBadge({ tag }: { tag: string }) {
+  const label = TAG_LABEL[tag] ?? tag.slice(0, 4).toUpperCase();
+  return (
+    <View style={tagStyle.badge}>
+      <Text style={tagStyle.text}>{label}</Text>
+    </View>
+  );
+}
+
+const tagStyle = StyleSheet.create({
+  badge: {
+    backgroundColor: colors.brand.primary + '14',
+    borderRadius: radius.xs,
+    borderWidth: 1,
+    borderColor: colors.brand.primary + '28',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  text: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.brand.primary,
+    letterSpacing: 0.5,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -256,15 +305,17 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: spacing[0.5],
+    gap: spacing[1],
   },
-  description: {
-    fontWeight: '500',
+  title: {
+    fontWeight: '600',
+    color: colors.text.primary,
   },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[1.5],
+    flexWrap: 'nowrap',
   },
   dot: {
     width: 3,
